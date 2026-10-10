@@ -2,7 +2,7 @@ import type { ElementTable, RenderSurface } from 'claude-code'
 
 import type { Prefs, Touch, TurnStats } from '../types'
 import { formatDuration, formatMs } from './format'
-import { columnWidths, cutCell, isShell, tableArt, widthOf } from './markdown'
+import { columnWidths, isShell, tableArt, widthOf, wrapLines } from './markdown'
 import { diffRows, fenceDiff, newOnly } from './diff-fence'
 import { FOLD_CODE, FOLD_ROWS, foldButton, shownCount } from './fold'
 import type { Segment, Table } from './markdown'
@@ -306,6 +306,10 @@ const JUSTIFY = { left: 'flex-start', right: 'flex-end', center: 'center' } as c
 // app reports the window's width, wider than the transcript column a reply sits in.
 const NATURAL_SHARE = 0.55
 
+// Long cells wrap within their column up to this many lines, as on the desktop card,
+// and only the last one is cut with `…`.
+const MAX_CELL_LINES = 6
+
 // A grid of cells, so columns line up in the terminal's monospace and in the desktop
 // app's proportional font alike. `control`, such as a Copy button, sits on the frame's
 // top border at the right, as ╭──── Copy ─╮.
@@ -324,10 +328,12 @@ export function tableRows(look: Look, table: Table, maxWidth: number, control?: 
   const row = (cells: readonly string[], isHeader: boolean, band: string | undefined) => (
     <Box flexDirection="row" {...(band === undefined ? {} : { backgroundColor: band })}>
       {cells.map((cell, i) => (
-        <Box {...size(i)} paddingX={CELL_PAD} justifyContent={JUSTIFY[table.align[i] ?? 'left']}>
-          <Text color={palette.fg} bold={isHeader} wrap="truncate-end">
-            {cutCell(cell, widths[i] ?? 0)}
-          </Text>
+        <Box {...size(i)} flexDirection="column" paddingX={CELL_PAD} alignItems={JUSTIFY[table.align[i] ?? 'left']}>
+          {wrapLines(cell, widths[i] ?? 0, MAX_CELL_LINES).map(line => (
+            <Text color={palette.fg} bold={isHeader} wrap="truncate-end">
+              {line}
+            </Text>
+          ))}
         </Box>
       ))}
     </Box>

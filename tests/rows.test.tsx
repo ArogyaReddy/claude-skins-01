@@ -456,9 +456,30 @@ test('a table wider than its share spans the column instead of running off it', 
     expect(frame?.props?.width).toBe('100%')
     expect(control?.props?.position).toBe('absolute')
     expect(control?.props?.top).toBe(-1)
-    expect(await ui.find({ type: 'Text', text: /…$/ })).toBeDefined()
+    // The long cell wraps onto more lines instead of being cut.
+    expect(await ui.find({ type: 'Text', text: /…$/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^a long description/ })).toBeDefined()
     await ui.unmount()
   }
+})
+
+test('a terminal table wraps sentence-length cells within their column and caps them with …', async ($, on) => {
+  stubEngine(on)
+
+  const sentence = 'They run in the background and report back when they are done'
+  const endless = 'word '.repeat(400).trim()
+  const text = `| | Option A | Option B |\n|---|---|---|\n| What happens to the sessions? | ${sentence} | ${sentence} |\n| Cap | ${endless} | x |`
+  const ui = await $.ui.mount({ ...SITE, surface: 'terminal', component: 'AssistantMessage', requestId: 'wrap', props: { text, isFirstOfReply: true } })
+  type Node = { type?: string; children?: readonly (Node | string)[] }
+  const texts = (node: Node | string | undefined): string[] =>
+    node === undefined || typeof node === 'string' ? [] : node.type === 'Text' ? [node.children?.join('') ?? ''] : (node.children ?? []).flatMap(texts)
+  const shown = texts((await ui.find({ type: 'Box' })) as Node)
+
+  // Every word of the wrapped cell is drawn, split over lines of its column.
+  expect(shown.filter(line => sentence.includes(line) && line !== '').join(' ')).toContain(sentence)
+  expect(shown.filter(line => line.startsWith('word')).length).toBe(6)
+  expect(shown.filter(line => line.endsWith('…'))).toHaveLength(1)
+  await ui.unmount()
 })
 
 test('the desktop draws a table as an animated vector card, with a tooltip on a cut cell', async ($, on) => {
