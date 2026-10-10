@@ -1,4 +1,5 @@
 import type { Align, Table } from './markdown'
+import { wrapLines } from './markdown'
 import type { Palette } from './skin'
 import { CONTROL_SLOT, escape, HEADER_MID, measure as measureAt, MONO, riseDelay, staggerEnd, staggerStep, svgCard } from './svg-kit'
 
@@ -56,61 +57,9 @@ export const measure = (text: string, isMono: boolean): number => measureAt(text
 
 const isMonoKind = (kind: CellKind): boolean => kind !== 'text'
 
-// Splits a word too long for its column into pieces that each fit.
-function breakWord(word: string, width: number, isMono: boolean): string[] {
-  const pieces: string[] = []
-  let piece = ''
-
-  for (const char of word) {
-    if (piece !== '' && measure(piece + char, isMono) > width) {
-      pieces.push(piece)
-      piece = char
-    } else {
-      piece += char
-    }
-  }
-
-  return piece === '' ? pieces : [...pieces, piece]
-}
-
 // The cell's text as lines that fit its column; past the cap, the last line ends in `…`.
-export function wrapCell(text: string, width: number, isMono: boolean, maxLines = MAX_CELL_LINES): string[] {
-  const lines: string[] = []
-  let line = ''
-
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const candidate = line === '' ? word : `${line} ${word}`
-
-    if (measure(candidate, isMono) <= width) {
-      line = candidate
-      continue
-    }
-
-    if (line !== '') {
-      lines.push(line)
-    }
-
-    const pieces = measure(word, isMono) <= width ? [word] : breakWord(word, width, isMono)
-    lines.push(...pieces.slice(0, -1))
-    line = pieces.at(-1) ?? ''
-  }
-
-  const all = line === '' ? lines : [...lines, line]
-
-  if (all.length <= maxLines) {
-    return all.length === 0 ? [''] : all
-  }
-
-  const kept = all.slice(0, maxLines)
-  const last = kept[maxLines - 1] ?? ''
-  const chars = [...last]
-
-  while (chars.length > 0 && measure(`${chars.join('')}…`, isMono) > width) {
-    chars.pop()
-  }
-
-  return [...kept.slice(0, -1), `${chars.join('')}…`]
-}
+export const wrapCell = (text: string, width: number, isMono: boolean, maxLines = MAX_CELL_LINES): string[] =>
+  wrapLines(text, width, maxLines, line => measure(line, isMono))
 
 function naturalWidths(table: Table): number[] {
   return table.header.map((header, col) => {

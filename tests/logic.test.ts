@@ -5,7 +5,7 @@ import { foldLines, shellResultOf, shellStatus } from '../hooks/shell'
 import { buildCustom, resolveSkin, skinNames, withSlot } from '../hooks/custom'
 import { runDesign } from '../hooks/designer'
 import { clipLines, diffstat, formatDuration, formatMs, pick, shortenPath } from '../hooks/format'
-import { columnWidths, copyOf, cutCell, padCell, splitReply, widthOf } from '../hooks/markdown'
+import { columnWidths, copyOf, cutCell, padCell, splitReply, widthOf, wrapLines } from '../hooks/markdown'
 import { codeSvg, tokenize } from '../hooks/svg-code'
 import { fitText, settled } from '../hooks/svg-kit'
 import { diffLines, diffSvg, hunksOf } from '../hooks/svg-diff'
@@ -129,6 +129,9 @@ test('wide characters count two cells, so CJK cells are measured and cut in term
   expect(cutCell('레일, 스피너', 12)).toBe('레일, 스피너')
   expect(cutCell('레일, 스피너', 5)).toBe('레일…')
   expect(widthOf(padCell('레일', 8, 'left'))).toBe(8)
+  expect(wrapLines('In one place: the orchestrator', 14, 6)).toEqual(['In one place:', 'the', 'orchestrator'])
+  expect(wrapLines('레일 스피너 카탈로그', 7, 6).every(line => widthOf(line) <= 7)).toBe(true)
+  expect(wrapLines('word '.repeat(40), 10, 2)).toEqual(['word word', 'word word…'])
 })
 
 test('a made skin lays its slots over its base, and bad drafts are refused with a reason', async () => {

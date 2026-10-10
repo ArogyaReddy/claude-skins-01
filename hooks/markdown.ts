@@ -281,6 +281,62 @@ export function cutCell(text: string, width: number): string {
   return cutTo(text, width)
 }
 
+// Splits a word too long for its column into pieces that each fit.
+function breakWord(word: string, width: number, measure: (text: string) => number): string[] {
+  const pieces: string[] = []
+  let piece = ''
+
+  for (const char of word) {
+    if (piece !== '' && measure(piece + char) > width) {
+      pieces.push(piece)
+      piece = char
+    } else {
+      piece += char
+    }
+  }
+
+  return piece === '' ? pieces : [...pieces, piece]
+}
+
+// `text` as lines that fit `width`; past `maxLines`, the last line ends in `…`. `measure`
+// is terminal cells by default; the desktop card passes its pixel measure.
+export function wrapLines(text: string, width: number, maxLines: number, measure: (text: string) => number = widthOf): string[] {
+  const lines: string[] = []
+  let line = ''
+
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const candidate = line === '' ? word : `${line} ${word}`
+
+    if (measure(candidate) <= width) {
+      line = candidate
+      continue
+    }
+
+    if (line !== '') {
+      lines.push(line)
+    }
+
+    const pieces = measure(word) <= width ? [word] : breakWord(word, width, measure)
+    lines.push(...pieces.slice(0, -1))
+    line = pieces.at(-1) ?? ''
+  }
+
+  const all = line === '' ? lines : [...lines, line]
+
+  if (all.length <= maxLines) {
+    return all.length === 0 ? [''] : all
+  }
+
+  const kept = all.slice(0, maxLines)
+  const chars = [...(kept[maxLines - 1] ?? '')]
+
+  while (chars.length > 0 && measure(`${chars.join('')}…`) > width) {
+    chars.pop()
+  }
+
+  return [...kept.slice(0, -1), `${chars.join('')}…`]
+}
+
 export function padCell(text: string, width: number, align: Align): string {
   const cut = cutTo(text, width)
   const room = width - widthOf(cut)
