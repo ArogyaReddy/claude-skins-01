@@ -283,16 +283,30 @@ export function desktopSpinnerRow(look: Look, Svg: SvgElement, mode: SpinnerMode
   )
 }
 
+// Markdown reads a prompt's marks as formatting, so each ASCII mark is escaped to show as
+// typed and each line break becomes a hard break. Leading spaces stay spaces, not a code block.
+const literal = (text: string): string =>
+  text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.replace(/[!-\/:-@\[-`{-~]/g, '\\$&').replace(/^ +/, spaces => '&#32;'.repeat(spaces.length)))
+    .join('  \n')
+
 // Your message in a rounded outline sized to what you typed, so it stands apart from
 // replies without taking the full width. Images it carried follow below it, drawn by
 // Claude Code. `/skin prompt right` puts it on the right, where the desktop app draws it.
+// On the desktop app the text is the app's own Markdown, which can be selected and copied.
 export function promptRow(look: Look, text: string, images?: ReturnType<Ui['Text']>) {
-  const { Box, Text } = look.ui
+  const { Box, Markdown, Text } = look.ui
 
   return (
     <Box flexDirection="column" alignItems={look.prefs.prompt === 'right' ? 'flex-end' : 'flex-start'} marginY={1}>
       <Box borderStyle="round" borderColor={look.skin.palette.muted} paddingX={1} flexShrink={1}>
-        <Text color={look.skin.palette.fg}>{text}</Text>
+        {look.surface === 'terminal' ? (
+          <Text color={look.skin.palette.fg}>{text}</Text>
+        ) : (
+          <Markdown text={literal(text)} />
+        )}
       </Box>
       {images ?? ''}
     </Box>
