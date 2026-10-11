@@ -1217,6 +1217,42 @@ test('the band holds its rings still while the numbers stay and fills them once 
   expect(isSettled(await svgSource(band)), 'and then stay still').toBe(true)
 })
 
+// The stub clock starts at 10 s; this 5h window resets 100 minutes after that.
+const resetting = { startedAt: 0, context: { window: 200000, percent: 42 }, rateLimits: [{ kind: 'five_hour', percentUsed: 18, resetsAt: new Date(10_000 + 100 * 60_000).toISOString() }] }
+
+test('with countdown on, the band says when each limit resets, on both surfaces', async ($, on) => {
+  on('session.usage', () => ({ value: resetting }))
+  stubEngine(on, { usage: true })
+  await startDesktop($, on)
+
+  const desktop = await $.ui.mount(BAND('desktop', false))
+  expect(await svgSource(desktop), 'off by default').not.toContain('1h40')
+  await desktop.unmount()
+
+  await runSkin($, 'countdown on')
+  const band = await $.ui.mount(BAND('desktop', false))
+  expect(await svgSource(band)).toContain('5h · 1h40')
+  expect(((await band.find({ type: 'Svg' })) as { props: { alt: string } } | undefined)?.props.alt).toContain('5h 18%, resets in 1h40')
+
+  const line = await $.ui.mount(BAND('terminal', false))
+  expect(await line.find({ type: 'Text', text: ' 18% 5h · 1h40' })).toBeDefined()
+})
+
+test('a countdown ticking down redraws the band without filling its rings again', async ($, on) => {
+  on('session.usage', () => ({ value: resetting }))
+  const clock = stubEngine(on, { usage: true })
+  await startDesktop($, on)
+  await runSkin($, 'countdown on')
+
+  const band = await $.ui.mount(BAND('desktop', false))
+  expect(isSettled(await svgSource(band)), 'the first rings fill in').toBe(false)
+
+  await clock.advance(60_000)
+  const ticked = await svgSource(band)
+  expect(ticked).toContain('5h · 1h39')
+  expect(isSettled(ticked), 'the new minute keeps the rings still').toBe(true)
+})
+
 test('another mod redrawing the band every second replays neither the rings nor the tables', { plugins: [COUNTDOWN] }, async ($, on) => {
   const clock = stubEngine(on)
   await startDesktop($, on)

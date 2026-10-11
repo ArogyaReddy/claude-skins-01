@@ -26,7 +26,7 @@ import { cardWidth, settled } from './svg-kit'
 import { tableSvg } from './svg-table'
 import { terminalSvg } from './svg-terminal'
 import type { ShellOutput } from './svg-terminal'
-import { usageLine, usageSvg } from './svg-usage'
+import { metersKey, usageLine, usageSvg } from './svg-usage'
 import { codeRows } from './code-rows'
 import { languageOf } from './highlight'
 import type { Meter } from './svg-usage'
@@ -874,7 +874,7 @@ function meterView(look: Look, meters: readonly Meter[]) {
     const Svg = look.svg
     const built = usageSvg(meters, palette)
 
-    return <Svg source={sourceOf(look, `usage:${built.alt}`, built)} alt={built.alt} width={built.width} height={built.height} />
+    return <Svg source={sourceOf(look, `usage:${metersKey(meters)}`, built)} alt={built.alt} width={built.width} height={built.height} />
   }
 
   return (
@@ -882,7 +882,7 @@ function meterView(look: Look, meters: readonly Meter[]) {
       {usageLine(meters).map(meter => (
         <Text color={palette.muted}>
           <Text color={palette.user}>{meter.bar}</Text>
-          {` ${meter.percent}% ${meter.label}`}
+          {` ${meter.text}`}
         </Text>
       ))}
     </Box>

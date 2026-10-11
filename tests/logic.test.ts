@@ -11,7 +11,7 @@ import { fitText, settled } from '../hooks/svg-kit'
 import { diffLines, diffSvg, hunksOf } from '../hooks/svg-diff'
 import { fitColumns, kindOfCell, measure, tableSvg, wrapCell } from '../hooks/svg-table'
 import { outputLines, shellOutputOf, terminalSvg } from '../hooks/svg-terminal'
-import { limitLabel, meterColor, metersOf, usageSvg } from '../hooks/svg-usage'
+import { countdownOf, countdownsOf, limitLabel, meterColor, metersKey, metersOf, usageSvg } from '../hooks/svg-usage'
 import { isNewer, updateNotice } from '../hooks/updates'
 import { deepen, gnomeDark, isLightTheme, macDark, resolveLight, toLight, windowsDark } from '../hooks/light'
 import { parseFolders, prefsFor, withFolder, withoutFolder } from '../hooks/folders'
@@ -299,6 +299,18 @@ test('plan limits read as 5h and 7d, and a meter warns as it fills', async () =>
   ])
   expect(meterColor(85, tokyoNight.palette)).toBe(tokyoNight.palette.warn)
   expect(usageSvg([{ label: 'context', percent: 42 }], tokyoNight.palette).alt).toBe('context 42%')
+})
+
+test('a countdown reads to the minute, rounding up, and only for the limits that reset', async () => {
+  const minutes = (n: number) => n * 60_000
+
+  expect(countdownOf(minutes(3 * 1440 + 4 * 60 + 30))).toBe('3d4h')
+  expect(countdownOf(minutes(65))).toBe('1h05')
+  expect(countdownOf(minutes(11) + 1)).toBe('12m')
+  expect(countdownOf(0)).toBe('now')
+  expect(countdownOf(-5000)).toBe('now')
+  expect(countdownsOf({ context: 10, limits: [{ label: '5h', percent: 1, resetsAt: minutes(100) }, { label: '7d', percent: 2 }] }, 0)).toEqual({ '5h': '1h40' })
+  expect(metersKey(metersOf({ context: null, limits: [{ label: '5h', percent: 1 }] }, { '5h': '1h40' }))).toBe(metersKey(metersOf({ context: null, limits: [{ label: '5h', percent: 1 }] })))
 })
 
 test('a long cell wraps on its words, breaks a word too long for the column, and caps its lines', async () => {
