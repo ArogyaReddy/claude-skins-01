@@ -996,6 +996,39 @@ test('/skin pin keeps a look to this folder, /skin unpin returns to the default'
   expect((store.prefs as { skin: string }).skin).toBe('dracula')
 })
 
+// On a Team or Enterprise plan the built-in guard holds classic.SessionStart back from
+// user-tier mods, so /clear reaches skins only as the new session's first appended row.
+test('the first row of a new session loads the saved prefs again, without classic.SessionStart', async ($, on) => {
+  const store: Record<string, unknown> = {}
+  let session = 's1'
+  stubEngine(on, { store: true })
+  on('store.get', ($, e) => ({ value: store[e.key] }))
+  on('store.set', ($, e) => {
+    store[e.key] = e.value
+    return { value: undefined }
+  })
+  on('session.id', () => ({ value: session }))
+  on('session.start', () => ({ cwd: '/work' }))
+  on('command.register', () => ({ value: { command: 'skin' } }))
+  on('tool.register', () => ({ value: { tool: 'mcp__skins__design' } }))
+  on('config.list', () => ({ value: [] }))
+
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  const colorNow = async (id: string) =>
+    spanColor((await (await $.ui.mount(toolUse(call('Bash', { command: 'ls' }, { tool_use_id: id })))).find({ type: 'Text', text: /Bash/ })) as Found, 'Bash')
+  const before = await colorNow('b1')
+  const note = { message: { type: 'user', content: [{ type: 'text', text: 'hi' }] } } as never
+
+  // Saved by another session: the same session's rows leave the loaded prefs alone.
+  store.prefs = { skin: 'dracula' }
+  await $.session.append(note)
+  expect(await colorNow('b2')).toBe(before)
+
+  session = 's2'
+  await $.session.append(note)
+  expect(await colorNow('b3')).not.toBe(before)
+})
+
 test('quiet output folds a read-only call to its row, a failure to its error line', async ($, on) => {
   stubEngine(on)
   // The kit gives each call its own id; the engine's answer reads it back.
