@@ -918,7 +918,9 @@ reply width: ${lastColumns} columns`
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     const active = await activeSkin($)
 
-    if (active === null || !TYPED.has(e.props.origin.kind) || e.props.text.length > MAX_PROMPT) {
+    // On the desktop app a prompt keeps Claude Code's own drawing, as a reply does, so its
+    // text can be selected and copied. The skin's outline stays in the terminal.
+    if (active === null || !TYPED.has(e.props.origin.kind) || e.props.text.length > MAX_PROMPT || e.surface !== 'terminal') {
       return next(e)
     }
 
