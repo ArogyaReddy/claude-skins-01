@@ -25,7 +25,7 @@ import { ICONS } from './skin'
 import type { Skin } from './skin'
 import { hunksOf } from './svg-diff'
 import { shellOutputOf } from './svg-terminal'
-import { limitLabel, metersOf } from './svg-usage'
+import { countdownsOf, limitLabel, metersOf } from './svg-usage'
 import { shortenPath } from './format'
 import { kindOf, summarize, toolLabel } from './tools'
 import { commandOf, errorLine, isQuiet, quietLabel } from './quiet'
@@ -45,6 +45,8 @@ const MAX_PROMPT = 4000
 const CLIP_HEAD = 8
 const CLIP_TAIL = 4
 const FRAME_MS = 90
+// Countdowns read to the minute, so they are looked at once a minute.
+const COUNTDOWN_MS = 60_000
 const SETTLE_LEAD_MS = FRAME_MS
 const FAST_RETRIES = 4
 const RETRY_MAX_MS = 1000
@@ -66,6 +68,8 @@ const imagesAtom = atom({ plugin: 'skins', key: 'images' } as const, false)
 const quietAtom = atom({ plugin: 'skins', key: 'quiet' } as const, false)
 const commandAtom = atom({ plugin: 'skins', key: 'command' } as const, '')
 const usageAtom = atom({ plugin: 'skins', key: 'usage' } as const, { context: null, limits: [] } as UsageSnap)
+// The band's countdowns as last drawn; it changes only when one of them reads differently.
+const countdownsAtom = atom({ plugin: 'skins', key: 'countdowns' } as const, {} as Record<string, string>)
 const compactingAtom = atom({ plugin: 'skins', key: 'compacting' } as const, false)
 const pinnedAtom = atom({ plugin: 'skins', key: 'pinned' } as const, false)
 const settleAtom = atom({ plugin: 'skins', key: 'settle' } as const, 0)
@@ -430,15 +434,40 @@ async function refreshUsage($: EngineInterface): Promise<void> {
   const usage = await $.session.usage()
   const snap: UsageSnap = {
     context: usage.context.percent ?? null,
-    limits: usage.rateLimits.map(limit => ({ label: limitLabel(limit.kind), percent: limit.percentUsed })),
-  }
+    limits: usage.rateLimits.map(limit => {
+      const resetsAt = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
 
-  if (JSON.stringify(metersOf(await read($, usageAtom))) === JSON.stringify(metersOf(snap))) {
+      return { label: limitLabel(limit.kind), percent: limit.percentUsed, ...(Number.isNaN(resetsAt) ? {} : { resetsAt }) }
+    }),
+  }
+  // A window that resets moves its reset time even where its percent stays the same.
+  const drawn = (of: UsageSnap) => JSON.stringify([metersOf(of), of.limits.map(limit => limit.resetsAt ?? null)])
+
+  if (drawn(await read($, usageAtom)) === drawn(snap)) {
     return
   }
 
   await settleEntrances($, true)
   await update($, usageAtom, () => snap)
+}
+
+// Redraws the band when a countdown it shows would read differently, and not otherwise:
+// a redraw settles the cards still entering first, as a usage change does.
+async function tickCountdowns($: EngineInterface): Promise<void> {
+  const prefs = await read($, prefsAtom)
+
+  if (!prefs.countdown || !prefs.band) {
+    return
+  }
+
+  const next = countdownsOf(await read($, usageAtom), await $.clock.now())
+
+  if (JSON.stringify(next) === JSON.stringify(await read($, countdownsAtom))) {
+    return
+  }
+
+  await settleEntrances($, true)
+  await update($, countdownsAtom, () => next)
 }
 
 async function checkForUpdate($: EngineInterface): Promise<void> {
@@ -515,6 +544,7 @@ export const register: Register = on => {
   let stats: TurnStats = NO_STATS
   let isWorking = false
   let ticker: Timer | undefined
+  let countdownTicker: Timer | undefined
   // The width the last reply was drawn at, shown by /skin list to tune table sizing.
   let lastColumns: number | undefined
 
@@ -522,7 +552,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'skin',
       description: 'Open the skin settings, or /skin <name | list | off>',
-      argumentHint: '[gallery | copy | copy code | name | list | off | calm | pin | unpin | share | rail | tables | shimmer | band | clip | markdown | quiet | charts | math | commands | shell | highlight | hints | links | fold | icons | prompt]',
+      argumentHint: '[gallery | copy | copy code | name | list | off | calm | pin | unpin | share | rail | tables | shimmer | band | countdown | clip | markdown | quiet | charts | math | commands | shell | highlight | hints | links | fold | icons | prompt]',
       immediate: true,
     })
     await $.tool.register({
@@ -550,6 +580,12 @@ export const register: Register = on => {
       if (settling.size > 0) {
         void settleEntrances($)
       }
+    })
+    countdownTicker?.cancel()
+    countdownTicker = $.clock.every(COUNTDOWN_MS, () => {
+      void tickCountdowns($).catch((error: unknown) => {
+        $.ui.log(`countdown tick: ${error instanceof Error ? error.message : String(error)}`, { to: 'debug' })
+      })
     })
 
     return next(e)
@@ -1076,7 +1112,11 @@ reply width: ${lastColumns} columns`
   // and a survey, keep their place.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const active = await activeSkin($)
-    const meters = metersOf(await read($, usageAtom))
+    const usage = await read($, usageAtom)
+    // Drawn from the clock so a countdown switched on shows at once; reading the atom
+    // redraws the band when the minute tick changes one.
+    const countdowns = active?.prefs.countdown === true ? (await read($, countdownsAtom), countdownsOf(usage, await $.clock.now())) : {}
+    const meters = metersOf(usage, countdowns)
 
     if (active === null || !active.prefs.band || e.props.hasSurvey || meters.length === 0) {
       return next(e)
