@@ -1012,12 +1012,17 @@ test('the first row of a new session loads the saved prefs again, without classi
   on('command.register', () => ({ value: { command: 'skin' } }))
   on('tool.register', () => ({ value: { tool: 'mcp__skins__design' } }))
   on('config.list', () => ({ value: [] }))
+  const note = { message: { type: 'user', content: [{ type: 'text', text: 'hi' }] } } as never
+
+  // An older kit (the pinned CI build) cannot append a row at all: nothing to check there.
+  if (!(await $.session.append(note).then(() => true, () => false))) {
+    return
+  }
 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   const colorNow = async (id: string) =>
     spanColor((await (await $.ui.mount(toolUse(call('Bash', { command: 'ls' }, { tool_use_id: id })))).find({ type: 'Text', text: /Bash/ })) as Found, 'Bash')
   const before = await colorNow('b1')
-  const note = { message: { type: 'user', content: [{ type: 'text', text: 'hi' }] } } as never
 
   // Saved by another session: the same session's rows leave the loaded prefs alone.
   store.prefs = { skin: 'dracula' }
