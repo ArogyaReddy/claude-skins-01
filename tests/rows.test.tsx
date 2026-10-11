@@ -236,13 +236,32 @@ test('a typed prompt sits in an outline sized to its text, other senders keep th
     // The outline hugs the text: its column does not stretch it to the full width.
     expect(column?.props.alignItems).toBe('flex-start')
     expect(column?.children?.[0]?.props?.borderStyle).toBe('round')
-    expect(await typed.find({ type: 'Text', text: 'fix the build' })).toBeDefined()
+    // The desktop draws the text as the app's own Markdown, so it can be selected.
+    expect(await typed.find({ type: surface === 'terminal' ? 'Text' : 'Markdown', text: 'fix the build' })).toBeDefined()
     await typed.unmount()
 
     const notice = await $.ui.mount(prompt('task-notification'))
     expect(await notice.find({ type: 'Text', text: 'stock row' })).toBeDefined()
     await notice.unmount()
   }
+})
+
+test('a desktop prompt shows its marks as typed, keeps its lines, and falls back to text when too long', async ($, on) => {
+  stubEngine(on)
+  const mount = (text: string) =>
+    $.ui.mount({ ...SITE, surface: 'desktop', component: 'UserMessage', requestId: 'm1', props: { text, origin: { kind: 'composer' }, isExpanded: false } })
+
+  const marked = await mount('**not bold** <b>\n    indented # 1.')
+  const noBreak = String.fromCharCode(0xa0)
+  const shown = [String.raw`\*\*not bold\*\* \<b\>  `, noBreak.repeat(4) + String.raw`indented \# 1\.`].join('\n')
+  expect(await marked.find({ type: 'Markdown', text: shown }), 'marks escaped, indent kept').toBeDefined()
+  await marked.unmount()
+
+  // Escaping grows a prompt: 4000 characters of dots and line breaks are near 10000 of Markdown.
+  const long = '.\n'.repeat(2000)
+  const huge = await mount(long)
+  expect(await huge.find({ type: 'Text', text: long }), 'too long for Markdown').toBeDefined()
+  await huge.unmount()
 })
 
 test('/skin prompt right moves the outline to the right, and the settings pane moves it back', async ($, on) => {
