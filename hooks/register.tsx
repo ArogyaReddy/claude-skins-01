@@ -362,6 +362,28 @@ async function load($: EngineInterface): Promise<void> {
   })
 }
 
+// The session the prefs were last loaded for. /clear, /resume and /branch reset $.state to its
+// defaults and skip session.start, and on a Team or Enterprise plan the built-in guard
+// (cc-plugin-sec-default) keeps classic.SessionStart from user-tier mods: the new session's first
+// appended rows catch the change instead. No await between the check and the write, so a burst of
+// appends loads once.
+let loadedFor: string | undefined
+
+// Undefined where nothing answers for the session's id (a test's engine): then there is nothing to compare.
+const sessionId = ($: EngineInterface): Promise<string | undefined> => $.session.id().catch(() => undefined)
+
+async function reloadIfNewSession($: EngineInterface): Promise<void> {
+  const id = await sessionId($)
+
+  if (id === undefined || id === loadedFor) {
+    return
+  }
+
+  loadedFor = id
+  await load($)
+  await followTheme($)
+}
+
 // A pinned folder keeps its prefs to itself; every other folder shares the default.
 async function savePrefs($: EngineInterface, prefs: Prefs): Promise<void> {
   if (!(await read($, pinnedAtom))) {
@@ -508,6 +530,7 @@ export const register: Register = on => {
       description: DESIGN_TOOL.description,
       inputSchema: DESIGN_TOOL.inputSchema,
     })
+    loadedFor = await sessionId($)
     await load($)
     await refreshUsage($)
     await followTheme($)
@@ -532,10 +555,9 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // /clear, /resume and /branch reset $.state to its defaults and skip session.start.
+  // Where the guard does not hold it back, this comes first; session.append then finds the session loaded.
   on('classic.SessionStart', { source: ['clear', 'resume', 'fork'] }, async ($, e, next) => {
-    await load($)
-    await followTheme($)
+    await reloadIfNewSession($)
 
     return next(e)
   })
@@ -573,8 +595,10 @@ export const register: Register = on => {
     return result
   })
 
-  // Notes which prompts carried images, so their row keeps Claude Code's drawing of them.
+  // Loads the prefs again for a new session (see loadedFor), and notes which prompts carried images,
+  // so their row keeps Claude Code's drawing of them.
   on('session.append', async ($, e, next) => {
+    await reloadIfNewSession($)
     const stored = await next(e)
     const hasImage = e.door === 'prompt' && e.message.content.some(block => block.type === 'image')
 
