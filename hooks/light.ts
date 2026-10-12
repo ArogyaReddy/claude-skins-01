@@ -82,9 +82,10 @@ export const resolveLight = (hints: ThemeHints): boolean =>
 // when its output says neither (the setting is missing, the tool failed).
 type ProbeOutput = Pick<ProcessRunResult, 'exitCode' | 'stdout' | 'stderr'>
 
-// `defaults read -g AppleInterfaceStyle`: "Dark", or unset ("does not exist") when light.
+// `defaults read -g AppleInterfaceStyle`: "Dark", or unset when light: "does not exist"
+// before macOS 27, "Could not find key" from 27 on.
 export const macDark = (out: ProbeOutput): boolean | undefined =>
-  out.exitCode === 0 ? out.stdout.trim() === 'Dark' : /does not exist/.test(out.stderr) ? false : undefined
+  out.exitCode === 0 ? out.stdout.trim() === 'Dark' : /does not exist|Could not find key/.test(out.stderr) ? false : undefined
 
 // `reg query ...\Personalize /v AppsUseLightTheme`: 0x0 is dark, 0x1 light.
 export const windowsDark = (out: ProbeOutput): boolean | undefined => {

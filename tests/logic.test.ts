@@ -1029,6 +1029,7 @@ test('each system says dark, light, or nothing', async () => {
 
   expect(macDark(ran(0, 'Dark\n'))).toBe(true)
   expect(macDark(ran(1, '', 'The domain/default pair of (kCFPreferencesAnyApplication, AppleInterfaceStyle) does not exist'))).toBe(false)
+  expect(macDark(ran(1, '', "Error: Could not find key 'AppleInterfaceStyle' in domain 'kCFPreferencesAnyApplication'."))).toBe(false)
   expect(macDark(ran(127, '', 'command not found'))).toBe(undefined)
 
   expect(windowsDark(windows('0x0'))).toBe(true)
