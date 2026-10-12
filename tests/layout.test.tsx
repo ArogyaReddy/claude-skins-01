@@ -2,9 +2,10 @@ import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { fenceDiff, newOnly } from '../hooks/diff-fence'
+import { diffFenceTag, fenceDiff, newOnly } from '../hooks/diff-fence'
 import { DEFAULT_PREFS } from '../hooks/command'
 import { replySegments } from '../hooks/reply'
+import dracula from '../hooks/themes/dracula'
 import noir from '../hooks/themes/noir'
 
 // Diff fences, blocks side by side, and `$.skins.markdown` for other mods.
@@ -63,6 +64,52 @@ test('a diff fence on the terminal is numbered rows in the skin’s colours, wit
 
   await ui.press({ key: 'copy-0-new' })
   expect(copied).toEqual(['export function limit(n: number) {\n  return n <= 10\n}'])
+})
+
+const FS_DIFF =
+  '```diff\n--- a/Foo.fs\n+++ b/Foo.fs\n@@ -1,2 +1,3 @@\n let foo (bar: decimal) =\n-    if bar < 0m then Error "baz" else Ok bar\n+    match bar with\n+    | v -> Ok v\n```'
+
+// The Text that draws exactly `word` and nothing else: one highlighted token.
+async function token(ui: { findAll: (q: { type: string }) => Promise<unknown[]> }, word: string): Promise<Node | undefined> {
+  return ((await ui.findAll({ type: 'Text' })) as Node[]).find(node => node.children?.length === 1 && node.children[0] === word)
+}
+
+test('a diff fence highlights its code in the language its path names, the markers in the change colours', async ($, on) => {
+  stub(on)
+  await skin($, 'dracula')
+
+  const ui = await $.ui.mount(reply(FS_DIFF))
+  expect((await token(ui, 'match'))?.props.color).toBe(dracula.palette.web)
+  expect((await token(ui, 'if'))?.props.dimColor).toBe(true)
+  expect(await ui.find({ type: 'Text', text: /2 \+ {5}match bar with/ })).toBeDefined()
+})
+
+test('a ```diff-<language> fence names its language, as Prism reads it', async ($, on) => {
+  expect(diffFenceTag('diff')).toEqual({ lang: undefined })
+  expect(diffFenceTag('patch')).toEqual({ lang: undefined })
+  expect(diffFenceTag('diff-fsharp')).toEqual({ lang: 'fsharp' })
+  expect(diffFenceTag('diff-ts')).toEqual({ lang: 'ts' })
+  expect(diffFenceTag('diff-brainfuck')).toEqual({ lang: undefined })
+  expect(diffFenceTag('fsharp')).toBeNull()
+
+  stub(on)
+  await skin($, 'dracula')
+
+  const ui = await $.ui.mount(reply('```diff-fsharp\n-let a = 1\n+let a = 2\n```'))
+  expect((await token(ui, 'let'))?.props.color).toBe(dracula.palette.web)
+  expect(await ui.find({ type: 'Text', text: /1 {3}- let a = 1/ })).toBeDefined()
+})
+
+test('a diff fence with no path, or with highlight off, keeps whole-line change colours', async ($, on) => {
+  stub(on)
+
+  const bare = await $.ui.mount(reply('```diff\n-let a = 1\n+let a = 2\n```'))
+  expect(await token(bare, 'let')).toBeUndefined()
+  expect(await bare.find({ type: 'Text', text: /1 {3}- let a = 1/ })).toBeDefined()
+
+  await skin($, 'highlight off')
+  const plain = await $.ui.mount(reply(FS_DIFF, 'terminal', 100, 'm2'))
+  expect(await token(plain, 'match')).toBeUndefined()
 })
 
 test('a diff fence on the desktop is the diff card, with copy new only under it', async ($, on) => {

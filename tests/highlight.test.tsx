@@ -17,7 +17,7 @@ function roleOf(code: string, lang: string, text: string): Role | undefined {
 }
 
 test('every fence tag in the list maps to a family', () => {
-  const tags = ['ts', 'js', 'tsx', 'json', 'bash', 'sh', 'powershell', 'python', 'rust', 'go', 'c', 'cpp', 'c#', 'java', 'yaml', 'toml', 'html', 'xml', 'css', 'sql', 'diff', 'markdown', 'lua']
+  const tags = ['ts', 'js', 'tsx', 'json', 'bash', 'sh', 'powershell', 'python', 'rust', 'go', 'c', 'cpp', 'c#', 'f#', 'fsharp', 'fs', 'fsx', 'java', 'yaml', 'toml', 'html', 'xml', 'css', 'sql', 'diff', 'markdown', 'lua']
 
   expect(tags.filter(tag => languageOf(tag) === undefined)).toEqual([])
   expect(languageOf('brainfuck')).toBeUndefined()
@@ -41,6 +41,24 @@ test('C-like families: keywords, types, strings, numbers, comments, calls', () =
   expect(roleOf('#include <stdio.h>\nint main(void) { return 0; }', 'cpp', 'int')).toBe('type')
   expect(roleOf('public sealed record Point(int X);', 'c#', 'sealed')).toBe('keyword')
   expect(roleOf('@Override\npublic String toString() { return "p"; }', 'java', '@Override')).toBe('meta')
+})
+
+test('F#: keywords, types, literals, block comments, triple-quoted strings, type parameters', () => {
+  const fs = 'let foo (bar: decimal) =\n    match bar with\n    | v when v < 0m -> Error "baz" // why\n    | v -> Ok v'
+  expect(roleOf(fs, 'fsharp', 'let')).toBe('keyword')
+  expect(roleOf(fs, 'fsharp', 'match')).toBe('keyword')
+  expect(roleOf(fs, 'fsharp', 'decimal')).toBe('type')
+  expect(roleOf(fs, 'fsharp', '0m')).toBe('number')
+  expect(roleOf(fs, 'fsharp', 'Error')).toBe('literal')
+  expect(roleOf(fs, 'fsharp', '"baz"')).toBe('string')
+  expect(roleOf(fs, 'fsharp', '// why')).toBe('comment')
+
+  expect(roleOf('(* a\nstill *) let x = 1', 'fs', 'still *)')).toBe('comment')
+  expect(roleOf('let s = """one\ntwo"""', 'fsx', 'two"""')).toBe('string')
+  expect(roleOf('let s = $"{n} bars"', 'f#', '$"{n} bars"')).toBe('string')
+  // A `'` is a type parameter, not the start of a string that swallows the line.
+  expect(roleOf("let id (x: 'T) : 'T = x", 'fsharp', '=')).not.toBe('string')
+  expect(roleOf('type Direction =\n    | Entry\n    | Exit', 'fsharp', 'Direction')).toBe('type')
 })
 
 test('scripting families: Python, shells, PowerShell, Lua, SQL', () => {

@@ -113,12 +113,12 @@ Drawn by the mod's own card code (`scripts/previews.ts`), not screenshots.
 | Math | `$$…$$`, `\[…\]` and ` ```math ` as a typeset card: fractions, roots, sums and integrals with limits, matrices, aligned lines; `$…$` inline turns into Unicode | Fractions and limits stacked in cells, inline `$…$` as Unicode |
 | Command output | `/cost`, `/context` and plugin output: tables, code and `key: value` runs as cards | The same as cell grids |
 | Alerts and task lists | `> [!NOTE]` as a titled box, `- [ ]` with ticks and a done count | The same |
-| Code blocks | Card with language, line numbers, highlighting; shell blocks keep the Run button | Framed, the language on the frame, highlighted in the skin's colours: TS/JS, JSON, shells, PowerShell, Python, Rust, Go, C/C++, C#, Java, YAML, TOML, HTML/XML, CSS, SQL, diff, Markdown, Lua (`/skin highlight off` for Claude Code's own) |
+| Code blocks | Card with language, line numbers, highlighting; shell blocks keep the Run button | Framed, the language on the frame, highlighted in the skin's colours: TS/JS, JSON, shells, PowerShell, Python, Rust, Go, C/C++, C#, F#, Java, YAML, TOML, HTML/XML, CSS, SQL, diff, Markdown, Lua (`/skin highlight off` for Claude Code's own) |
 | Spinner | Animated icon per phase | The skin's word with a band of light |
 | Above the prompt | Context and plan-limit rings, Compact button, nudge at 70% | Block meters, same button |
 | Your prompts | Rounded outline | The same |
 | Links and files | URLs are the app's own links; tool rows colour files this turn created (`ok`) or edited (`warn`) | URLs in prose are OSC 8 links where the terminal draws them (`FORCE_HYPERLINK=1` or `0` overrides the check), plain text elsewhere; paths with `:line`, numbers and versions coloured, this turn's files in `ok` or `warn` in rows and prose |
-| Diff fences | ` ```diff ` as the diff card, with Copy and `new only` (the code after the change) | Numbered old and new lines, added and removed in the skin's colours, the same two copies |
+| Diff fences | ` ```diff ` as the diff card, with Copy and `new only` (the code after the change) | Numbered old and new lines, the `+` and `-` in the skin's colours and the code highlighted in the language its `+++` path or a ` ```diff-fsharp ` tag names, the same two copies |
 | Side by side | Two or more tables or charts in a row share it when each gets 75 columns; stack otherwise | Tables and diagrams in a row sit side by side while their natural widths fit; stack otherwise |
 | Long blocks | Code cards past 24 lines cut there, with `▾ N more` | Code past 24 lines, tables past 14 rows and shell output past 8 + 4 lines fold behind `▾ N more` / `▴ less` |
 

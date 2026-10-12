@@ -3,7 +3,7 @@ import type { ElementTable, RenderSurface } from 'claude-code'
 import type { Prefs, Touch, TurnStats } from '../types'
 import { formatDuration, formatMs } from './format'
 import { columnWidths, isShell, tableArt, widthOf, wrapLines } from './markdown'
-import { diffRows, fenceDiff, newOnly } from './diff-fence'
+import { diffFenceTag, diffRows, fenceDiff, newOnly } from './diff-fence'
 import { FOLD_CODE, FOLD_ROWS, foldButton, shownCount } from './fold'
 import type { Segment, Table } from './markdown'
 import { splitBlocks } from './blocks'
@@ -518,11 +518,12 @@ function segmentRow(look: Look, segment: Segment, i: number, maxWidth: number, S
   }
 
   if (segment.kind === 'code') {
-    // A ```diff fence with changes in it is a diff, not code.
-    const diff = segment.lang === 'diff' || segment.lang === 'patch' ? fenceDiff(segment.code) : null
+    // A ```diff fence with changes in it is a diff, not code; ```diff-fsharp names its language.
+    const tag = diffFenceTag(segment.lang)
+    const diff = tag === null ? null : fenceDiff(segment.code)
 
     if (diff !== null) {
-      return diffFence(look, diff, segment.code, maxWidth, i, Svg)
+      return diffFence(look, diff, segment.code, maxWidth, i, Svg, tag?.lang)
     }
 
     const { chart, art } = drawingOf(look, segment, maxWidth, Svg)
@@ -599,7 +600,7 @@ function drawingOf(look: Look, segment: Segment & { kind: 'code' }, maxWidth: nu
 
 // A diff fence: the diff card on the desktop, numbered rows on the terminal, with Copy for
 // the fence and `new only` for the code as it stands after the change.
-function diffFence(look: Look, diff: DiffInput, code: string, maxWidth: number, i: number, Svg?: SvgElement) {
+function diffFence(look: Look, diff: DiffInput, code: string, maxWidth: number, i: number, Svg?: SvgElement, fenceLang?: string) {
   const { Box } = look.ui
   const whole = copyButton(look, `copy-${i}`, code)
   const fresh = copyButton(look, `copy-${i}-new`, newOnly(diff), ' new only ')
@@ -624,7 +625,7 @@ function diffFence(look: Look, diff: DiffInput, code: string, maxWidth: number, 
       </Box>
     )
 
-  return diffRows(look, diff, controls, `fold-${i}`)
+  return diffRows(look, diff, controls, `fold-${i}`, fenceLang)
 }
 
 // Columns between blocks laid side by side.
