@@ -1,6 +1,6 @@
 import { renderMermaidAscii, seriesColors, setChartSize } from './vendor/mermaid-ascii.js'
 import type { AsciiTheme } from './vendor/mermaid-ascii.js'
-import { widthOf } from './markdown'
+import { charWidth, widthOf } from './markdown'
 import { frontmatterOf } from './mermaid-lex'
 import type { Slot } from './skin'
 
@@ -38,6 +38,9 @@ const MAX_CHARS = 8000
 const MAX_ROWS = 120
 // The widest gap the renderer leaves between a box and a link starting from it.
 const MAX_GAP = 3
+// Follows every wide character sent to the renderer, which counts code points, so the
+// character gets the two columns it takes on screen. It comes back as an empty cell.
+const SPARE = '\ue000'
 const CACHE_SIZE = 64
 
 // Colours no theme uses, one per role, so the renderer's HTML output says what each
@@ -245,18 +248,35 @@ function rejoinLabel(row: Cell[], x: number, step: -1 | 1): void {
   }
 }
 
+// `text` with a spare after each wide character.
+const widened = (text: string): string => [...text].map(char => (charWidth(char) === 2 ? char + SPARE : char)).join('')
+
+// Whether every unbroken stretch of wide characters in `text` shows in `grid`. The
+// renderer drops a node whose id is wide and draws the rest without a word.
+function drawsWide(text: string, grid: Cell[][]): boolean {
+  const drawn = grid.map(row => row.map(cell => cell.char).join('')).join('\n')
+  const stretches = [...text].map(char => (charWidth(char) === 2 ? char : ' ')).join('').split(' ')
+
+  return stretches.every(stretch => drawn.includes(stretch))
+}
+
 function render(text: string, kind: string, room: number, ascii: boolean): Cell[][] | null {
   if (kind === 'Chart') {
     const width = Math.max(24, Math.min(60, room - 10))
     setChartSize(width, Math.max(8, Math.min(16, Math.round(width * 0.3))))
   }
 
+  // Charts size their own labels.
+  const sent = kind === 'Chart' ? text : widened(text)
+
   try {
-    const html = renderMermaidAscii(text, { useAscii: ascii, paddingX: 4, paddingY: 2, colorMode: 'html', theme: SENTINEL })
+    const html = renderMermaidAscii(sent, { useAscii: ascii, paddingX: 4, paddingY: 2, colorMode: 'html', theme: SENTINEL })
     const series = new Map(seriesColors(8, SENTINEL).map((hex, i) => [hex.toLowerCase(), i]))
     series.set(SENTINEL.accent ?? '', 0)
 
-    return trimGrid(html.split('\n').map(line => cellsOf(line, series)))
+    const grid = trimGrid(html.split('\n').map(line => cellsOf(line, series)))
+
+    return sent !== text && !drawsWide(text, grid) ? null : grid
   } catch {
     return null
   }
@@ -291,7 +311,7 @@ function cellsOf(line: string, series: ReadonlyMap<string, number>): Cell[] {
 
   plain(line.slice(at))
 
-  return cells
+  return cells.map(cell => (cell.char === SPARE ? { ...cell, char: '' } : cell))
 }
 
 // Trailing blanks off every row, and blank rows off both ends.
