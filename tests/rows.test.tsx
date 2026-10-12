@@ -3,6 +3,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { Engine, Plugin } from 'claude-code/testing'
 
 import { widthOf } from '../hooks/markdown'
+import { mermaidArt } from '../hooks/mermaid-art'
 import noir from '../hooks/themes/noir'
 
 const SURFACES = ['terminal', 'desktop'] as const
@@ -764,6 +765,35 @@ test('a terminal diagram keeps every link joined to its box', async ($, on) => {
   expect(rows.some(row => row.includes('Test  │◄──retry┐'))).toBe(true)
   expect(rows.some(row => /│ {1,3}[├┤]|[├┤] {1,3}│|│ +┴ +│/.test(row))).toBe(false)
   await terminal.unmount()
+})
+
+const artRows = (source: string, ascii = false): string[] | null =>
+  mermaidArt(source, 100, ascii)?.rows.map(row => row.map(run => run.text).join('')) ?? null
+
+test('a terminal diagram gives wide characters the two cells they take', () => {
+  const flow = artRows('flowchart LR\n  A[요청 받기] -->|예| B{성공?}\n  B --> C[처리]') ?? []
+  const top = flow.find(row => row.startsWith('┌')) ?? ''
+  const label = flow.find(row => row.includes('요청 받기')) ?? ''
+
+  // The first box's label row ends in the same cell as its border rows.
+  expect(widthOf(top.slice(0, top.indexOf('┐') + 1))).toBe(widthOf(label.slice(0, label.indexOf('├') + 1)))
+  expect(flow.every(row => !row.includes('\ue000'))).toBe(true)
+
+  const sequence = artRows('sequenceDiagram\n  사용자->>서버: 로그인 요청\n  서버-->>사용자: 완료') ?? []
+  expect(sequence.some(row => row.includes('로그인 요청'))).toBe(true)
+  // The participants' name row is as wide as the border row above it.
+  expect(widthOf(sequence[1] ?? '')).toBe(widthOf(sequence[0] ?? ''))
+  expect(sequence.every(row => !row.includes('\ue000'))).toBe(true)
+})
+
+test('a diagram the renderer cannot lay out with wide characters falls back to code', () => {
+  // The renderer drops a node whose id is wide: only the first box would be drawn.
+  expect(artRows('flowchart TD\n  A[開始] --> 請求\n  請求 --> B[End]')).toBeNull()
+  expect(artRows('stateDiagram-v2\n  [*] --> 대기\n  대기 --> 진행')).toBeNull()
+})
+
+test('a diagram of narrow characters is drawn as the renderer lays it out', () => {
+  expect(artRows('flowchart LR\n  A[Go] --> B[Stop]')?.[2]).toBe('│ Go ├───►│ Stop │')
 })
 
 test('a diagram too wide for the terminal falls back to rows, one nothing can read to its code', async ($, on) => {
