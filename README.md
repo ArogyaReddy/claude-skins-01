@@ -29,6 +29,8 @@ Needs Claude Code **2.1.287** or later, in a terminal or the desktop app's Code 
 
 Restart Claude Code. The **noir** skin is on; type `/skin` to change it.
 
+Looking for more mods? `/plugin install mod-store@hellosverre-mods`, then `/mods` browses and installs about 2,700 of them from a pane, showing what each one can access first.
+
 ## Update
 
 skins checks for a new release once a day and shows a toast when you are behind. To update:
