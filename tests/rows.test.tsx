@@ -361,6 +361,41 @@ test('a terminal table sizes Korean, Chinese, Japanese and emoji cells to their 
   await ui.unmount()
 })
 
+test('a terminal table that spans its row keeps each column at its own width', async ($, on) => {
+  stubEngine(on)
+
+  type Node = { type?: string; props?: Record<string, unknown>; children?: readonly (Node | string)[] }
+  const all = (node: Node | string | undefined): Node[] =>
+    node === undefined || typeof node === 'string' ? [] : [node, ...(node.children ?? []).flatMap(all)]
+  const holds = (node: Node | string | undefined, text: string) =>
+    typeof node !== 'string' && node?.children?.some(child => typeof child !== 'string' && child.type === 'Text' && child.children?.join('') === text) === true
+  // A spanning table's cells grow from nothing, so flex hands each column the row's inner
+  // width in proportion to its grow factor. The header row, found by its first cell.
+  const shares = (root: Node, first: string, inner: number): number[] => {
+    const row = all(root).find(node => node.props?.flexDirection === 'row' && holds(node.children?.[0], first))
+    const grows = (row?.children ?? []).map(cell => (typeof cell === 'string' ? 0 : Number(cell.props?.flexGrow)))
+    const total = grows.reduce((sum, grow) => sum + grow, 0)
+
+    return grows.map(grow => (inner * grow) / total)
+  }
+
+  // Wide enough to span the 100 columns: the one-cell `#` column still needs its padding.
+  const step = 'Install the plugin from the marketplace, then restart Claude Code so the hooks module loads and the skin draws'
+  const wide = await $.ui.mount({ ...SITE, surface: 'terminal', component: 'AssistantMessage', requestId: 'span', props: { text: `| # | Step |\n|---|---|\n| 1 | ${step} |`, isFirstOfReply: true } })
+  const [number = 0] = shares((await wide.find({ type: 'Box' })) as Node, '#', 100 - 2)
+  expect(number).toBeGreaterThanOrEqual(widthOf('#') + 2)
+  await wide.unmount()
+
+  // Beside a diagram a table gets its natural width, which also makes it span.
+  const text = '| Name | Description |\n|---|---|\n| left | short note here |\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Done]\n```'
+  const beside = await $.ui.mount({ ...SITE, surface: 'terminal', component: 'AssistantMessage', requestId: 'beside', props: { text, isFirstOfReply: true } })
+  const root = (await beside.find({ type: 'Box' })) as Node
+  const placed = all(root).find(node => node.props?.columnGap === 2)?.children?.[0] as Node | undefined
+  const [name = 0, description = 0] = shares(root, 'Name', Number(placed?.props?.width) - 2)
+  expect(name).toBeGreaterThanOrEqual(widthOf('Name') + 2)
+  expect(description).toBeGreaterThanOrEqual(widthOf('short note here') + 2)
+})
+
 test('the terminal spinner shimmers, the desktop one is an animated icon beside its step', async ($, on) => {
   stubEngine(on)
 

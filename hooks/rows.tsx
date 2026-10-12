@@ -339,9 +339,11 @@ export function tableRows(look: Look, table: Table, maxWidth: number, control?: 
   const widths = columnWidths(table, maxWidth - 4, CELL_PAD * 2)
   const natural = widths.reduce((sum, width) => sum + width + CELL_PAD * 2, 2)
   const isFluid = natural > maxWidth * NATURAL_SHARE
+  // A fluid column grows from nothing, padding included, so its share counts the padding
+  // too: by text width alone a narrow column gets less than it needs, or no room at all.
   const size = (i: number) =>
     isFluid
-      ? { width: 0, flexGrow: Math.max(1, widths[i] ?? 1), flexShrink: 1 }
+      ? { width: 0, flexGrow: (widths[i] ?? 0) + CELL_PAD * 2, flexShrink: 1 }
       : { width: (widths[i] ?? 0) + CELL_PAD * 2, flexShrink: 0 }
   const row = (cells: readonly string[], isHeader: boolean, band: string | undefined) => (
     <Box flexDirection="row" {...(band === undefined ? {} : { backgroundColor: band })}>
