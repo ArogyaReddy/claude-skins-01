@@ -152,6 +152,26 @@ const CSHARP = base({
   at: false,
 })
 
+// Only `"` quotes: a `'` opens a type parameter (`'T`) as often as a char. A plain string
+// may run over several lines, as may a triple-quoted or verbatim one.
+const FSHARP = base({
+  block: [['(*', '*)']],
+  strings: [
+    { open: '$"""', close: '"""', multi: true, raw: true },
+    { open: '"""', close: '"""', multi: true, raw: true },
+    { open: '$@"', close: '"', multi: true, raw: true },
+    { open: '@$"', close: '"', multi: true, raw: true },
+    { open: '@"', close: '"', multi: true, raw: true },
+    { open: '$"', close: '"', multi: true },
+    { open: '"', close: '"', multi: true },
+  ],
+  keywords: words(
+    'abstract and as assert async base begin class default delegate do done downcast downto elif else end exception extern for fun function global if in inherit inline interface internal lazy let match member module mutable namespace new not of open or override private public rec return select sig static struct task then to try type upcast use val when while with yield',
+  ),
+  literals: words('true false null None Some Ok Error'),
+  types: words('bool byte sbyte char decimal double float float32 int int16 int32 int64 uint uint16 uint32 uint64 nativeint bigint string unit obj exn list array seq option voption Result Async Task Map Set'),
+})
+
 const JAVA = base({
   keywords: words(
     'abstract assert break case catch class const continue default do else enum extends final finally for goto if implements import instanceof interface native new package private protected public record return static strictfp super switch synchronized this throw throws transient try var void volatile while yield',
@@ -212,6 +232,7 @@ const FAMILIES: Readonly<Record<string, Family>> = {
   go: GO,
   c: C,
   csharp: CSHARP,
+  fsharp: FSHARP,
   java: JAVA,
   shell: SHELL,
   powershell: POWERSHELL,
@@ -228,6 +249,7 @@ const ALIASES: Readonly<Record<string, string>> = {
   go: 'go', golang: 'go',
   c: 'c', h: 'c', cpp: 'c', 'c++': 'c', cc: 'c', cxx: 'c', hpp: 'c',
   cs: 'csharp', csharp: 'csharp', 'c#': 'csharp',
+  fs: 'fsharp', fsharp: 'fsharp', 'f#': 'fsharp', fsx: 'fsharp', fsi: 'fsharp',
   java: 'java', kotlin: 'java', kt: 'java',
   sh: 'shell', bash: 'shell', zsh: 'shell', shell: 'shell', console: 'shell', fish: 'shell',
   ps1: 'powershell', powershell: 'powershell', pwsh: 'powershell',

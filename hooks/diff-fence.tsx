@@ -1,4 +1,6 @@
 import { FOLD_CODE, foldButton, shownCount } from './fold'
+import { highlight, languageOf, roleColors } from './highlight'
+import type { Token } from './highlight'
 import type { Look, Ui } from './rows'
 import { diffLines } from './svg-diff'
 import type { DiffInput, Hunk } from './svg-diff'
@@ -49,8 +51,59 @@ export const newOnly = (diff: DiffInput): string =>
     .flatMap(hunk => hunk.lines.filter(line => !line.startsWith('-') && !line.startsWith('\\')).map(line => line.slice(1)))
     .join('\n')
 
+// Whether a fence tag is a diff, and the language it names: ```diff and ```patch name none,
+// ```diff-fsharp names F#, as Prism reads `diff-<language>`. Null for any other tag.
+export function diffFenceTag(tag: string): { lang: string | undefined } | null {
+  if (tag === 'diff' || tag === 'patch') {
+    return { lang: undefined }
+  }
+
+  return tag.startsWith('diff-') ? { lang: languageOf(tag.slice('diff-'.length)) } : null
+}
+
+// The language a diff is read in: the one its fence tag names, else the one its path names
+// by its extension (`src/Foo.fs` reads as F#). Undefined when neither names one the
+// highlighter knows.
+export const diffLanguage = (diff: DiffInput, fenceLang?: string): string | undefined => {
+  const extension = /\.([\w#+-]+)$/.exec(diff.path)?.[1]
+
+  return fenceLang ?? (extension === undefined ? undefined : languageOf(extension))
+}
+
+// Each line's tokens by its place in `lines`, in the language the path names. The old side
+// (context and removed lines) and the new side (context and added lines) are each read in
+// order, so a comment or string that spans lines carries; a context line takes the new
+// side's reading. Undefined when there is nothing to highlight in.
+export function diffTokens(lines: readonly ReturnType<typeof diffLines>[number][], lang: string | undefined): (Token[] | undefined)[] | undefined {
+  if (lang === undefined) {
+    return undefined
+  }
+
+  const tokens: (Token[] | undefined)[] = lines.map(() => undefined)
+  // `without` is the side's opposite: leaving out removed lines reads the new side.
+  const readSide = (without: 'add' | 'del') => {
+    const at = lines.flatMap((line, i) => (line.kind === 'gap' || line.kind === without ? [] : [i]))
+    const scanned = highlight(at.map(i => (lines[i] as { text: string }).text).join('\n'), lang)
+
+    at.forEach((i, k) => {
+      tokens[i] ??= scanned[k]
+    })
+  }
+
+  readSide('del')
+  readSide('add')
+
+  return tokens
+}
+
 // The terminal's drawing: a frame like a code block's, the numbers in a gutter.
-export function diffRows(look: Look, diff: DiffInput, control: ReturnType<Ui['Button']> | ReturnType<Ui['Box']> | undefined, foldKey: string) {
+export function diffRows(
+  look: Look,
+  diff: DiffInput,
+  control: ReturnType<Ui['Button']> | ReturnType<Ui['Box']> | undefined,
+  foldKey: string,
+  fenceLang?: string,
+) {
   const { Box, Text } = look.ui
   const { palette } = look.skin
   const lines = diffLines(diff.hunks)
@@ -59,13 +112,28 @@ export function diffRows(look: Look, diff: DiffInput, control: ReturnType<Ui['Bu
   const number = (value: number | undefined) => (value === undefined ? ' '.repeat(digits) : String(value).padStart(digits))
   const added = lines.filter(line => line.kind === 'add').length
   const removed = lines.filter(line => line.kind === 'del').length
+  const syntax = look.prefs.highlight ? diffTokens(shown, diffLanguage(diff, fenceLang)) : undefined
+  const colors = roleColors(palette)
 
   return (
     <Box flexDirection="column" marginY={1}>
       <Box flexDirection="column" borderStyle="round" borderColor={palette.muted} paddingX={1}>
-        {shown.map(line =>
+        {shown.map((line, i) =>
           line.kind === 'gap' ? (
             <Text color={palette.muted}>{`${' '.repeat(digits * 2 + 2)}⋯ line ${line.at}`}</Text>
+          ) : syntax?.[i] !== undefined && line.text !== '' ? (
+            // The marker keeps the change's colour; the code after it takes the language's.
+            <Text wrap="truncate-end">
+              <Text color={palette.muted}>{`${number(line.old)} ${number(line.new)} `}</Text>
+              <Text color={line.kind === 'add' ? palette.ok : line.kind === 'del' ? palette.err : palette.muted}>
+                {`${line.kind === 'add' ? '+' : line.kind === 'del' ? '-' : ' '} `}
+              </Text>
+              {(syntax[i] ?? []).map(token => (
+                <Text color={colors[token.role]} dimColor={line.kind === 'del'}>
+                  {token.text}
+                </Text>
+              ))}
+            </Text>
           ) : (
             <Text wrap="truncate-end">
               <Text color={palette.muted}>{`${number(line.old)} ${number(line.new)} `}</Text>
