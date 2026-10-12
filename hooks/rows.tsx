@@ -650,7 +650,9 @@ function besideWidth(look: Look, segment: Segment, maxWidth: number, Svg?: SvgEl
     return chart === null ? null : 0
   }
 
-  return art === null ? null : Math.max(...art.rows.map(row => row.reduce((sum, run) => sum + widthOf(run.text), 0)))
+  // A drawing is laid out within two columns less than it is given (`chartArt`,
+  // `mermaidArt`), so its place beside another block keeps those two.
+  return art === null ? null : Math.max(...art.rows.map(row => row.reduce((sum, run) => sum + widthOf(run.text), 0))) + 2
 }
 
 type Placed = { segment: Segment; i: number; width: number }

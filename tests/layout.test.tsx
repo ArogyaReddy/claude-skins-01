@@ -104,6 +104,28 @@ test('prose between two tables keeps them apart', async ($, on) => {
   expect(await sideBySide(ui)).toHaveLength(0)
 })
 
+test('a diagram beside a table is drawn as it measured, not narrower', async ($, on) => {
+  stub(on)
+
+  // Every line a drawing holds, with its runs joined.
+  const lines = (node: unknown): string[] => {
+    const text = (child: unknown): string => (typeof child === 'string' ? child : ((child as Node).children ?? []).map(text).join(''))
+    const all = (one: unknown): Node[] => (typeof one === 'string' ? [] : [one as Node, ...((one as Node).children ?? []).flatMap(all)])
+
+    return all(node).filter(one => one.type === 'Text').map(text)
+  }
+
+  const flow = await $.ui.mount(reply(`${SMALL('left')}\n\n\`\`\`mermaid\nflowchart LR\n  A[Start] --> B[Done]\n\`\`\``))
+  expect(await sideBySide(flow)).toHaveLength(1)
+  // Still left to right: both boxes on one line.
+  expect(lines(await flow.find({ type: 'Box' })).some(line => /Start.*Done/.test(line))).toBe(true)
+  await flow.unmount()
+
+  const sequence = await $.ui.mount(reply(`${SMALL('left')}\n\n\`\`\`mermaid\nsequenceDiagram\n  User->>Server: login\n\`\`\``, 'terminal', 100, 'm2'))
+  expect(await sideBySide(sequence)).toHaveLength(1)
+  expect(lines(await sequence.find({ type: 'Box' })).some(line => /│ User │/.test(line))).toBe(true)
+})
+
 test('on the desktop two table cards share a wide window and stack in a narrow one', async ($, on) => {
   stub(on)
   const text = `${SMALL('left')}\n\n${SMALL('right')}`
